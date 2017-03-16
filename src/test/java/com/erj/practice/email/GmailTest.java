@@ -53,33 +53,51 @@ public class GmailTest {
         assertEquals(expectedContent.trim(), message.get("content"));
     }
 
-    private Map<String, String> readIncomingPOP3Message(final String username, final String password) {
-        Map<String, String> message = new HashMap<>();
-        Properties popProperties = new Properties();// can't be null, but doesn't need any properties set
-        Session popSession = Session.getDefaultInstance(popProperties);
-        try {
-            Store store = popSession.getStore("pop3s");
-            store.connect("pop.gmail.com", username, password);
-            Folder inbox = store.getFolder("INBOX");
-            inbox.open(Folder.READ_WRITE);
-            Message[] messages = inbox.getMessages();
-            message.put("subject", messages[0].getSubject().trim());
-            message.put("content", messages[0].getContent().toString().trim());
-            delete(messages);
-            inbox.close(true);
-            store.close();
-        } catch (NoSuchProviderException e) {
-            e.printStackTrace();
-            fail("Message Read Failure: " + e.getMessage());
-        } catch (MessagingException e) {
-            e.printStackTrace();
-            fail("Message Read Failure: " + e.getMessage());
-        } catch (Exception e) {
-            e.printStackTrace();
-            fail("Message Read Failure: " + e.getMessage());
-        }
+    private Properties loadSecretProperties() {
+        String filename = "secret.properties";
+        String unableToReadPropertiesMessage = "Unable to read secret.properties for username and password.";
+        Properties secretProperties = new Properties();
+        InputStream input = null;
 
-        return message;
+        input = getClass().getClassLoader().getResourceAsStream(filename);
+        if (input == null) {
+            fail(unableToReadPropertiesMessage);
+        }
+        try {
+            secretProperties.load(input);
+        } catch (IOException ioe) {
+            ioe.printStackTrace();
+            fail(unableToReadPropertiesMessage);
+        }
+        return secretProperties;
+    }
+    
+    private void sendOutgoingSMTPMessage(final String username, final String password, String subject, String content) {
+        String toAddress = username;
+        String fromAddress = username;
+
+        Properties smtpProperties = new Properties();
+        smtpProperties.put("mail.smtp.auth", "true");
+        smtpProperties.put("mail.smtp.starttls.enable", "true");
+        smtpProperties.put("mail.smtp.host", "smtp.gmail.com");
+
+        Session smtpSession = Session.getInstance(smtpProperties, new javax.mail.Authenticator() {
+            protected PasswordAuthentication getPasswordAuthentication() {
+                return new PasswordAuthentication(username, password);
+            }
+        });
+
+        try {
+            MimeMessage outgoingMessage = new MimeMessage(smtpSession);
+            outgoingMessage.setFrom(new InternetAddress(fromAddress));
+            outgoingMessage.addRecipient(Message.RecipientType.TO, new InternetAddress(toAddress));
+            outgoingMessage.setSubject(subject);
+            outgoingMessage.setText(content);
+            Transport.send(outgoingMessage);
+        } catch (MessagingException ex) {
+            ex.printStackTrace();
+            fail("Message Send Failure " + ex.getMessage());
+        }
     }
 
     private Map<String, String> readIncomingIMAPMessage(final String username, final String password) {
@@ -118,53 +136,6 @@ public class GmailTest {
         }
     }
 
-    private void sendOutgoingSMTPMessage(final String username, final String password, String subject, String content) {
-        String toAddress = username;
-        String fromAddress = username;
-
-        Properties smtpProperties = new Properties();
-        smtpProperties.put("mail.smtp.auth", "true");
-        smtpProperties.put("mail.smtp.starttls.enable", "true");
-        smtpProperties.put("mail.smtp.host", "smtp.gmail.com");
-
-        Session smtpSession = Session.getInstance(smtpProperties, new javax.mail.Authenticator() {
-            protected PasswordAuthentication getPasswordAuthentication() {
-                return new PasswordAuthentication(username, password);
-            }
-        });
-
-        try {
-            MimeMessage outgoingMessage = new MimeMessage(smtpSession);
-            outgoingMessage.setFrom(new InternetAddress(fromAddress));
-            outgoingMessage.addRecipient(Message.RecipientType.TO, new InternetAddress(toAddress));
-            outgoingMessage.setSubject(subject);
-            outgoingMessage.setText(content);
-            Transport.send(outgoingMessage);
-        } catch (MessagingException ex) {
-            ex.printStackTrace();
-            fail("Message Send Failure " + ex.getMessage());
-        }
-    }
-
-    private Properties loadSecretProperties() {
-        String filename = "secret.properties";
-        String unableToReadPropertiesMessage = "Unable to read secret.properties for username and password.";
-        Properties secretProperties = new Properties();
-        InputStream input = null;
-
-        input = getClass().getClassLoader().getResourceAsStream(filename);
-        if (input == null) {
-            fail(unableToReadPropertiesMessage);
-        }
-        try {
-            secretProperties.load(input);
-        } catch (IOException ioe) {
-            ioe.printStackTrace();
-            fail(unableToReadPropertiesMessage);
-        }
-        return secretProperties;
-    }
-    
     /**
      * Proof of concept for testing sending and receiving email to a Gmail account for testing.
      * 
@@ -195,5 +166,33 @@ public class GmailTest {
         assertEquals(expectedSubject, message.get("subject"));
         assertEquals(expectedContent.trim(), message.get("content"));
     }
+    
+    private Map<String, String> readIncomingPOP3Message(final String username, final String password) {
+        Map<String, String> message = new HashMap<>();
+        Properties popProperties = new Properties();// can't be null, but doesn't need any properties set
+        Session popSession = Session.getDefaultInstance(popProperties);
+        try {
+            Store store = popSession.getStore("pop3s");
+            store.connect("pop.gmail.com", username, password);
+            Folder inbox = store.getFolder("INBOX");
+            inbox.open(Folder.READ_WRITE);
+            Message[] messages = inbox.getMessages();
+            message.put("subject", messages[0].getSubject().trim());
+            message.put("content", messages[0].getContent().toString().trim());
+            delete(messages);
+            inbox.close(true);
+            store.close();
+        } catch (NoSuchProviderException e) {
+            e.printStackTrace();
+            fail("Message Read Failure: " + e.getMessage());
+        } catch (MessagingException e) {
+            e.printStackTrace();
+            fail("Message Read Failure: " + e.getMessage());
+        } catch (Exception e) {
+            e.printStackTrace();
+            fail("Message Read Failure: " + e.getMessage());
+        }
 
+        return message;
+    }
 }
